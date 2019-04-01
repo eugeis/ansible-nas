@@ -6,18 +6,32 @@
   with_items:
     - "{{ znc_data_directory }}"
 
-- name: ZNC
-  docker_container:
+- name: ZNC Docker Stack
+  docker_stack:
+    state: present
     name: znc
-    image: znc
-    pull: true
-    volumes:
-      - "{{ znc_data_directory }}:/znc-data:rw"
-      - "/etc/timezone:/etc/timezone:ro"
-    ports:
-      - "6677:6677"
-    env:
-      PUID: "{{ znc_user_id }}"
-      PGID: "{{ znc_group_id }}"
-    restart_policy: unless-stopped
-    memory: 1g
+    compose:
+    -   version: '3'
+        services:
+          znc:
+            image: znc
+            volumes:
+              - "{{ znc_data_directory }}:/znc-data:rw"
+              - "/etc/timezone:/etc/timezone:ro"
+            # ports:
+            #  - "6677:6677" 
+            # network_mode: "host"
+            environment:
+              PUID: "{{ znc_user_id }}"
+              PGID: "{{ znc_group_id }}"
+            labels:
+              traefik.backend: "znc"
+              traefik.frontend.rule: "Host:znc.{{ ansible_nas_domain }}"
+              traefik.enable: "true"
+              traefik.port: "6677"
+            deploy:
+              restart_policy:
+                condition: on-failure
+              resources:
+                limits:
+                  memory: "1g"

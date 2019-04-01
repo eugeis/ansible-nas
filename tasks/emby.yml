@@ -6,21 +6,34 @@
     - "{{ emby_config_directory }}"
 
 - name: emby Docker Container
-  docker_container:
+  docker_stack:
+    state: present
     name: emby
-    image: emby/embyserver
-    pull: true
-    volumes:
-      - "{{ emby_config_directory }}:/config:rw"
-      - "{{ emby_movies_directory }}:/movies:rw"
-      - "{{ emby_tv_directory }}:/tv:rw"
-    ports:
-      - "8096:8096" # HTTP port
-      - "8920:8920" # HTTPS port
-    network_mode: host
-    env:
-      TZ: "{{ ansible_nas_timezone }}"
-      PUID: "{{ emby_user_id }}"
-      PGID: "{{ emby_group_id }}"
-    restart_policy: unless-stopped
-    memory: 1g
+    compose:
+    -   version: '3'
+        services:
+          portainer:
+            image: emby/embyserver
+            volumes:
+              - "{{ emby_config_directory }}:/config:rw"
+              - "{{ emby_movies_directory }}:/movies:rw"
+              - "{{ emby_tv_directory }}:/tv:rw"
+            ports:
+              - "8096:8096" # HTTP port
+              - "8920:8920" # HTTPS port
+            #network_mode: host
+            environment:
+              TZ: "{{ ansible_nas_timezone }}"
+              PUID: "{{ couchpotato_user_id }}"
+              PGID: "{{ couchpotato_group_id }}"
+            labels:
+              traefik.backend: "emby"
+              traefik.frontend.rule: "Host:emby.{{ ansible_nas_domain }}"
+              traefik.enable: "true"
+              traefik.port: "5050"
+            deploy:
+              restart_policy:
+                condition: on-failure
+              resources:
+                limits:
+                  memory: "1g"

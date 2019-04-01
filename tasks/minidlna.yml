@@ -1,18 +1,31 @@
-- name: minidlna Docker Container
-  docker_container:
+---
+- name: minidlna Docker Stack
+  docker_stack:
+    state: present
     name: minidlna
-    image: vladgh/minidlna
-    pull: true
-    volumes:
-      - "{{ minidlna_media_directory1 }}:/media1:rw"
-      - "{{ minidlna_media_directory2 }}:/media2:rw"
-    ports:
-      - "8201:8201"
-    env:
-      MINIDLNA_MEDIA_DIR1: "/media1"
-      MINIDLNA_MEDIA_DIR2: "/media2"
-      MINIDLNA_FRIENDLY_NAME: "{{ minidlna_friendly_name }}"
-      MINIDLNA_PORT: "8201"
-    network_mode: host
-    restart_policy: unless-stopped
-    memory: 1g
+    compose:
+    -   version: '3'
+        services:
+          minidlna:
+            image: vladgh/minidlna
+            volumes:
+              - "{{ minidlna_media_directory1 }}:/media1:rw"
+              - "{{ minidlna_media_directory2 }}:/media2:rw"
+            ports:
+              - "8202:8201"
+            environment:
+              MINIDLNA_MEDIA_DIR1: "/media1"
+              MINIDLNA_MEDIA_DIR2: "/media2"
+              MINIDLNA_FRIENDLY_NAME: "{{ minidlna_friendly_name }}"
+              MINIDLNA_PORT: "8202"
+            labels:
+              traefik.backend: "minidlna"
+              traefik.frontend.rule: "Host:minidlna.{{ ansible_nas_domain }}"
+              traefik.enable: "true"
+              traefik.port: "8202"
+            deploy:
+              restart_policy:
+                condition: on-failure
+              resources:
+                limits:
+                  memory: "1g"

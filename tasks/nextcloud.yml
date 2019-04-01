@@ -7,41 +7,47 @@
     - "{{ nextcloud_data_directory }}/nextcloud"
     - "{{ nextcloud_data_directory }}/mysql"
 
-- name: Nextcloud Mysql Docker Container
-  docker_container:
-    name: nextcloud-mysql
-    image: mysql:5.7
-    pull: true
-    volumes:
-      - "{{ nextcloud_data_directory }}/mysql:/var/lib/mysql:rw"
-    env:
-      MYSQL_DATABASE: nextcloud
-      MYSQL_USER: nextcloud-user
-      MYSQL_PASSWORD: nextcloud-pass
-      MYSQL_ROOT_PASSWORD: nextcloud-secret
-    restart_policy: unless-stopped
-    memory: 1g
-
 - name: Nextcloud Docker Container
-  docker_container:
+  docker_stack:
+    state: present
     name: nextcloud
-    image: nextcloud:14
-    pull: true
-    links:
-        - nextcloud-mysql:mysql
-    volumes:
-      - "{{ nextcloud_data_directory }}/nextcloud:/var/www/html:rw"
-    ports:
-      - "8080:80"
-    env:
-      MYSQL_HOST: mysql
-      MYSQL_DATABASE: nextcloud
-      MYSQL_USER: nextcloud-user
-      MYSQL_PASSWORD: nextcloud-pass
-    labels:
-      traefik.backend: "nextcloud"
-      traefik.frontend.rule: "Host:nextcloud.{{ ansible_nas_domain }}"
-      traefik.enable: "true"
-      traefik.port: "80"
-    restart_policy: unless-stopped
-    memory: 1g
+    compose:
+    -   version: '3'
+        services:
+          nextcloud:
+            image: nextcloud:14
+            ports:
+              - "8080:80"
+            volumes:
+              - "{{ nextcloud_data_directory }}/nextcloud:/var/www/html:rw"
+            environment:
+              MYSQL_HOST: db
+              MYSQL_DATABASE: nextcloud
+              MYSQL_USER: nextcloud-user
+              MYSQL_PASSWORD: nextcloud-pass
+            labels:
+              traefik.backend: "nextcloud"
+              traefik.frontend.rule: "Host:nextcloud.{{ ansible_nas_domain }}"
+              traefik.enable: "true"
+              traefik.port: "80"
+            deploy:
+              restart_policy:
+                condition: on-failure
+              resources:
+                limits:
+                  memory: "1g"
+          db:
+            image: mysql:5.7
+            volumes:
+              - "{{ nextcloud_data_directory }}/mysql:/var/lib/mysql:rw"
+            environment:
+              MYSQL_DATABASE: nextcloud
+              MYSQL_USER: nextcloud-user
+              MYSQL_PASSWORD: nextcloud-pass
+              MYSQL_ROOT_PASSWORD: nextcloud-secret
+            deploy:
+              restart_policy:
+                condition: on-failure
+              resources:
+                limits:
+                  memory: "1g"

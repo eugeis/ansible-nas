@@ -21,17 +21,26 @@
     src: traefik/traefik.toml
     dest: "{{ traefik_data_directory }}/traefik.toml"
 
-- name: Traefik Docker Container
-  docker_container:
+
+- name: Traefik Docker Stack
+  docker_stack:
+    state: traefik
     name: traefik
-    image: "{{ traefik_docker_image }}"
-    pull: true
-    ports:
-      - "80:80"
-      - "443:443"
-      - "8083:8083"
-    volumes:
-      - "{{ traefik_data_directory }}/traefik.toml:/etc/traefik/traefik.toml:ro"
-      - "/var/run/docker.sock:/var/run/docker.sock:ro"
-    restart_policy: unless-stopped
-    memory: 1g
+    compose:
+    -   version: '3'
+        services:
+          traefik:
+            image: "{{ traefik_docker_image }}"
+            volumes:
+              - "{{ traefik_data_directory }}/traefik.toml:/etc/traefik/traefik.toml:ro"
+              - "/var/run/docker.sock:/var/run/docker.sock:ro"
+            ports:
+              - "80:80"
+              - "443:443"
+              - "8083:8083"
+            deploy:
+              restart_policy:
+                condition: on-failure
+              resources:
+                limits:
+                  memory: "1g"

@@ -38,3 +38,39 @@
   when: docker_config.changed
   tags:
     - skip_ansible_lint
+
+# swarm / stack
+- name: 'Install jsondiff'
+  pip:
+    name: jsondiff
+    state: present
+  register: result
+  until: result is succeeded
+
+- name: 'Install pyyaml'
+  pip:
+    name: pyyaml
+    state: present
+  register: result
+  until: result is succeeded
+
+- name: Init a new swarm with default parameters
+  docker_swarm:
+    state: present
+
+- name: Update swarm configuration
+  docker_swarm:
+    state: present
+    election_tick: 5
+
+- name: Add nodes
+  docker_swarm:
+    state: join
+    advertise_addr: '{{ advertise_addr }}'
+    join_token: SWMTKN-1--xxxxx
+    remote_addrs: [ '{{ advertise_addr }}:2377' ]
+
+- name: Inspect swarm
+  docker_swarm:
+    state: inspect
+  register: swarm_info

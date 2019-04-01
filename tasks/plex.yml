@@ -6,19 +6,35 @@
   with_items:
     - "{{ plex_config_directory }}"
 
-- name: plex Docker Container
-  docker_container:
+
+- name: Plex Docker Stack
+  docker_stack:
+    state: present
     name: plex
-    image: linuxserver/plex
-    pull: true
-    volumes:
-      - "{{ plex_config_directory }}:/config:rw"
-      - "{{ plex_movies_directory }}:/movies:rw"
-      - "{{ plex_tv_directory }}:/tv:rw"
-    network_mode: "host"
-    env:
-      TZ: "{{ ansible_nas_timezone }}"
-      PUID: "{{ plex_user_id }}"
-      PGID: "{{ plex_group_id }}"
-    restart_policy: unless-stopped
-    memory: 1g
+    compose:
+    -   version: '3'
+        services:
+          plex:
+            image: linuxserver/plex
+            volumes:
+              - "{{ plex_config_directory }}:/config:rw"
+              - "{{ plex_movies_directory }}:/movies:rw"
+              - "{{ plex_tv_directory }}:/tv:rw"
+            network_mode: "host"
+            ports:
+              - "8203:8201"
+            environment:
+              TZ: "{{ ansible_nas_timezone }}"
+              PUID: "{{ plex_user_id }}"
+              PGID: "{{ plex_group_id }}"
+            labels:
+              traefik.backend: "plex"
+              traefik.frontend.rule: "Host:plex.{{ ansible_nas_domain }}"
+              traefik.enable: "true"
+              traefik.port: "8203"
+            deploy:
+              restart_policy:
+                condition: on-failure
+              resources:
+                limits:
+                  memory: "1g"

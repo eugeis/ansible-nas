@@ -6,17 +6,29 @@
   with_items:
     - "{{ portainer_data_directory }}"
 
-- name: Portainer Docker Container
-  docker_container:
+- name: Portainer Docker Stack
+  docker_stack:
+    state: present
     name: portainer
-    image: portainer/portainer
-    pull: true
-    volumes:
-      - "{{ portainer_data_directory }}:/data:rw"
-      - "/var/run/docker.sock:/var/run/docker.sock:ro"
-      - "/etc/timezone:/etc/timezone:ro"
-    ports:
-      - "9000:9000"
-    restart_policy: unless-stopped
-    memory: 1g
-
+    compose:
+    -   version: '3'
+        services:
+          portainer:
+            image: portainer/portainer
+            volumes:
+              - "{{ portainer_data_directory }}:/data:rw"
+              - "/var/run/docker.sock:/var/run/docker.sock:ro"
+              - "/etc/timezone:/etc/timezone:ro"
+            ports:
+              - "9000:9000"
+            labels:
+              traefik.backend: "portainer"
+              traefik.frontend.rule: "Host:portainer.{{ ansible_nas_domain }}"
+              traefik.enable: "true"
+              traefik.port: "9000"
+            deploy:
+              restart_policy:
+                condition: on-failure
+              resources:
+                limits:
+                  memory: "1g"

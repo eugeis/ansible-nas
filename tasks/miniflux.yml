@@ -5,33 +5,44 @@
   with_items:
     - "{{ miniflux_data_directory }}/postgres"
 
-- name: Create Postgres for Miniflux
-  docker_container:
-    name: miniflux-postgres
-    image: postgres:11.1
-    pull: true
-    volumes:
-      - "{{ miniflux_data_directory }}/postgres:/var/lib/postgresql/data:rw"
-    env:
-      POSTGRES_USER: miniflux
-      POSTGRES_PASSWORD: supersecure
-    restart_policy: unless-stopped
-    memory: 1g
-
-- name: Create Miniflux container
-  docker_container:
+- name: Miniflux Docker Container
+  docker_stack:
+    state: present
     name: miniflux
-    image: miniflux/miniflux:latest
-    pull: true
-    links:
-        - miniflux-postgres:db
-    ports:
-      - "8070:8080"
-    env:
-      DATABASE_URL: postgres://miniflux:supersecure@db/miniflux?sslmode=disable
-      RUN_MIGRATIONS: 1
-      CREATE_ADMIN: 1
-      ADMIN_USERNAME: "{{ miniflux_admin_username }}"
-      ADMIN_PASSWORD: "{{ miniflux_admin_password }}"
-    restart_policy: unless-stopped
-    memory: 1g
+    compose:
+    -   version: '3'
+        services:
+          miniflux:
+            image: miniflux/miniflux:latest
+            # ports:
+            #  - "8070:8080"
+            environment:
+              DATABASE_URL: postgres://miniflux:supersecure@db/miniflux?sslmode=disable
+              RUN_MIGRATIONS: 1
+              CREATE_ADMIN: 1
+              ADMIN_USERNAME: "{{ miniflux_admin_username }}"
+              ADMIN_PASSWORD: "{{ miniflux_admin_password }}"
+            labels:
+              traefik.backend: "miniflux"
+              traefik.frontend.rule: "Host:miniflux.{{ ansible_nas_domain }}"
+              traefik.enable: "true"
+              traefik.port: "8080"
+            deploy:
+              restart_policy:
+                condition: on-failure
+              resources:
+                limits:
+                  memory: "1g"
+          db:
+            image: postgres:11.1
+            volumes:
+              - "{{ miniflux_data_directory }}/postgres:/var/lib/postgresql/data:rw"
+            environment:
+              POSTGRES_USER: miniflux
+              POSTGRES_PASSWORD: supersecure
+            deploy:
+              restart_policy:
+                condition: on-failure
+              resources:
+                limits:
+                  memory: "1g"

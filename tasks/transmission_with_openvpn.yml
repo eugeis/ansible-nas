@@ -12,36 +12,49 @@
     - "{{ transmission_download_directory }}"
     - "{{ transmission_watch_directory }}"
 
-- name: Transmission with VPN
-  docker_container:
+- name: Transmission with VPN Docker Stack
+  docker_stack:
+    state: present
     name: transmission-openvpn
-    image: haugene/transmission-openvpn
-    pull: true
-    volumes:
-      - "/etc/localtime:/etc/localtime:ro"
-      - "{{ transmission_download_directory }}:/storage/downloads:rw"
-      - "{{ transmission_config_directory }}:/config:rw"
-      - "{{ transmission_watch_directory }}:/storage/watch:rw"
-      - "/etc/timezone:/etc/timezone:ro"
-    ports:
-      - "9091:9091"
-      - "51413:51413"
-    env:
-      TRANSMISSION_HOME: /config
-      TRANSMISSION_DOWNLOAD_DIR: /storage/downloads/complete
-      TRANSMISSION_INCOMPLETE_DIR: /storage/downloads/incomplete
-      TRANSMISSION_WATCH_DIR: /storage/watch
-      OPENVPN_PROVIDER: "{{ openvpn_provider }}"
-      OPENVPN_USERNAME: "{{ openvpn_username }}"
-      OPENVPN_PASSWORD: "{{ openvpn_password }}"
-      OPENVPN_CONFIG: "{{ openvpn_config }}"
-      PUID: "{{ transmission_user_id }}"
-      PGID: "{{ transmission_group_id }}"
-      LOCAL_NETWORK: "{{ transmission_local_network }}"
-      ENABLE_UFW: false
-    devices:
-      - /dev/net/tun
-    capabilities:
-      - NET_ADMIN
-    restart_policy: unless-stopped
-    memory: 1g
+    compose:
+    -   version: '3'
+        services:
+          transmission-openvpn:
+            image: haugene/transmission-openvpn
+            volumes:
+              - "/etc/localtime:/etc/localtime:ro"
+              - "{{ transmission_download_directory }}:/storage/downloads:rw"
+              - "{{ transmission_config_directory }}:/config:rw"
+              - "{{ transmission_watch_directory }}:/storage/watch:rw"
+              - "/etc/timezone:/etc/timezone:ro"
+            ports:
+              - "9091:9091"
+              - "51413:51413"
+            environment:
+              TRANSMISSION_HOME: /config
+              TRANSMISSION_DOWNLOAD_DIR: /storage/downloads/complete
+              TRANSMISSION_INCOMPLETE_DIR: /storage/downloads/incomplete
+              TRANSMISSION_WATCH_DIR: /storage/watch
+              OPENVPN_PROVIDER: "{{ openvpn_provider }}"
+              OPENVPN_USERNAME: "{{ openvpn_username }}"
+              OPENVPN_PASSWORD: "{{ openvpn_password }}"
+              OPENVPN_CONFIG: "{{ openvpn_config }}"
+              PUID: "{{ transmission_user_id }}"
+              PGID: "{{ transmission_group_id }}"
+              LOCAL_NETWORK: "{{ transmission_local_network }}"
+              ENABLE_UFW: false
+            devices:
+              - /dev/net/tun
+            cap_add:
+              - NET_ADMIN
+            labels:
+              traefik.backend: "transmission"
+              traefik.frontend.rule: "Host:transmission.{{ ansible_nas_domain }}"
+              traefik.enable: "true"
+              traefik.port: "9091"
+            deploy:
+              restart_policy:
+                condition: on-failure
+              resources:
+                limits:
+                  memory: "1g"

@@ -20,48 +20,60 @@
     - "{{ grafana_data_directory }}/config/provisioning"
     - "{{ grafana_data_directory }}/config/provisioning/datasources"
 
-- name: InfluxDB
-  docker_container:
-    name: influxdb
-    image: influxdb
-    pull: true
-    volumes:
-      - "{{ influxdb_data_directory }}:/var/lib/influxdb:rw"
-    ports:
-      - "8086:8086"
-    restart_policy: unless-stopped
-    memory: 1g
-
 - name: Template telegraf.conf
   template:
     src: telegraf/telegraf.conf
     dest: "{{ telegraf_data_directory }}/telegraf.conf"
-
-- name: Telegraf
-  docker_container:
-    name: telegraf
-    image: telegraf
-    pull: true
-    volumes:
-      - "{{ telegraf_data_directory }}/telegraf.conf:/etc/telegraf/telegraf.conf:ro"
-      - "/var/run/docker.sock:/var/run/docker.sock:ro"
-    restart_policy: unless-stopped
-    memory: 1g
 
 - name: Template Grafana data source
   template:
     src: grafana/provisioning/datasources/ansible-nas.yml
     dest: "{{ grafana_data_directory }}/config/provisioning/datasources/ansible-nas.yml"
 
-- name: Grafana
-  docker_container:
+- name: Grafana Docker Stack
+  docker_stack:
+    state: present
     name: grafana
-    image: grafana/grafana
-    pull: true
-    volumes:
-      - "{{ grafana_data_directory }}/data:/var/lib/grafana:rw"
-      - "{{ grafana_data_directory }}/config/provisioning:/etc/grafana/provisioning:ro"
-    ports:
-      - "3000:3000"
-    restart_policy: unless-stopped
-    memory: 1g
+    compose:
+    -   version: '3'
+        services:
+          grafana:
+            image: grafana/grafana
+            ports:
+              - "3000:3000"
+            volumes:
+              - "{{ grafana_data_directory }}/data:/var/lib/grafana:rw"
+              - "{{ grafana_data_directory }}/config/provisioning:/etc/grafana/provisioning:ro"
+            labels:
+              traefik.backend: "grafana"
+              traefik.frontend.rule: "Host:grafana.{{ ansible_nas_domain }}"
+              traefik.enable: "true"
+              traefik.port: "3000"
+            deploy:
+              restart_policy:
+                condition: on-failure
+              resources:
+                limits:
+                  memory: "1g"
+          telegraf:
+            image: telegraf
+            volumes:
+              - "{{ telegraf_data_directory }}/telegraf.conf:/etc/telegraf/telegraf.conf:ro"
+              - "/var/run/docker.sock:/var/run/docker.sock:ro"
+            restart: unless-stopped
+            deploy:
+              resources:
+                limits:
+                  memory: "1g"
+          influxdb:
+            image: influxdb
+            ports:
+              - "8086:8086"
+            volumes:
+              - "{{ influxdb_data_directory }}:/var/lib/influxdb:rw"
+            deploy:
+              restart_policy:
+                condition: on-failure
+              resources:
+                limits:
+                  memory: "1g"
